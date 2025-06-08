@@ -18,7 +18,7 @@ Ultimate OLED display controller for SteelSeries devices with animated effects a
 - Windows 10/11
 - Python 3.8+
 - SteelSeries Engine 3
-- SteelSeries device with OLED display (Apex Pro, Rival 700/710, etc.)
+- SteelSeries Nova Pro X (other OLED devices may work but untested)
 
 ## Installation
 
@@ -46,8 +46,10 @@ python main.py
 To create a standalone executable:
 
 ```bash
-pyinstaller --onefile --windowed --name "NovaProXController" --icon="icon.ico" --add-data "ascii_arts;ascii_arts" --collect-all customtkinter main.py
+pyinstaller --onefile --windowed --name "NovaProXController" --icon="icon.ico" --collect-all customtkinter main.py
 ```
+
+The program will automatically create the `ascii_arts` folder with default ASCII art files on first run.
 
 ## Temperature Monitoring
 
@@ -71,6 +73,27 @@ For CPU temperature monitoring, install and run one of these programs:
 - `GPUtil` - GPU monitoring
 - `wmi` - Windows Management Instrumentation
 - `requests` - API communication
+
+## Custom ASCII Art
+
+You can add your own ASCII art to the program:
+
+1. Create a `.txt` file in the `ascii_arts` folder (created automatically on first run)
+2. Each file must contain exactly 3 lines
+3. Each line must be 15 characters or less
+4. Restart the program to load new ASCII art
+
+Example (`my_art.txt`):
+
+```
+   ╭─────╮
+   │ HI! │
+   ╰─────╯
+```
+
+## Known Issues
+
+- Sometimes animations may flicker between two different animations. Use the Clear button to fix this issue.
 
 ## Author
 

@@ -35,7 +35,6 @@ class AnimationFunctions:
         self._last_net_recv = 0
         self._last_net_sent = 0
         self._last_net_time = time.time()
-        self._com_initialized = False
     
     def reset_all(self):
         self.cpu_history = [0] * CHAR_LIMIT
@@ -142,27 +141,21 @@ class AnimationFunctions:
         if HAS_WMI:
             try:
                 c = wmi.WMI(namespace="root\\OpenHardwareMonitor")
-                cpu_temps = []
                 
                 for sensor in c.Sensor():
                     if sensor.SensorType == "Temperature":
-                        if "CPU" in sensor.Name or "Core" in sensor.Name:
+                        if "CPU Package" in sensor.Name:
+                            return float(sensor.Value)
+                
+                for sensor in c.Sensor():
+                    if sensor.SensorType == "Temperature":
+                        if "CPU" in sensor.Name or "CCD" in sensor.Name:
                             temp = float(sensor.Value)
                             if 0 < temp < 150:
-                                cpu_temps.append(temp)
-                
-                if cpu_temps:
-                    return sum(cpu_temps) / len(cpu_temps)
+                                return temp
                     
-            except:
-                try:
-                    c = wmi.WMI(namespace="root\\wmi")
-                    temp_info = c.MSAcpi_ThermalZoneTemperature()[0]
-                    temp = temp_info.CurrentTemperature / 10.0 - 273.15
-                    if 0 < temp < 150:
-                        return temp
-                except:
-                    pass
+            except Exception as e:
+                print(f"WMI Error: {e}")
         
         if HAS_PSUTIL:
             try:
@@ -174,20 +167,8 @@ class AnimationFunctions:
                                 temp = entries[0].current
                                 if 0 < temp < 150:
                                     return temp
-            except:
-                pass
-        
-        try:
-            for i in range(10):
-                try:
-                    with open(f"/sys/class/thermal/thermal_zone{i}/temp", 'r') as f:
-                        temp = int(f.read().strip()) / 1000.0
-                        if 0 < temp < 150:
-                            return temp
-                except:
-                    continue
-        except:
-            pass
+            except Exception as e:
+                print(f"psutil Error: {e}")
         
         return None
     
@@ -195,17 +176,20 @@ class AnimationFunctions:
         cpu_temp = "CPU: N/A"
         gpu_temp = "GPU: N/A"
         
-        cpu_temperature = self.get_cpu_temperature()
-        if cpu_temperature:
-            cpu_temp = f"CPU: {int(cpu_temperature)}°C"
+        try:
+            cpu_temperature = self.get_cpu_temperature()
+            if cpu_temperature is not None:
+                cpu_temp = f"CPU: {int(cpu_temperature)}°C"
+        except Exception as e:
+            print(f"CPU temp error: {e}")
         
         if HAS_GPUTIL:
             try:
                 gpus = GPUtil.getGPUs()
                 if gpus:
                     gpu_temp = f"GPU: {gpus[0].temperature:.0f}°C"
-            except:
-                pass
+            except Exception as e:
+                print(f"GPU temp error: {e}")
         
         return [
             cpu_temp,

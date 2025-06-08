@@ -185,7 +185,7 @@ class PresetManager:
             },
             "System": {
                 "clock": {"name": "Clock", "type": "dynamic", "func": "show_clock"},
-                "gpu_cpu_ram": {"name": "GPU CPU & RAM", "type": "dynamic", "func": "show_gpu_cpu_ram"},
+                "gpu_cpu_ram": {"name": "GPU, CPU & RAM", "type": "dynamic", "func": "show_gpu_cpu_ram"},
                 "ram_net_uptime": {"name": "RAM, NETWORK & UPTIME", "type": "dynamic", "func": "show_ram_network_uptime"},
                 "temperatures": {"name": "Temperatures", "type": "dynamic", "func": "show_temperatures"},
             },
