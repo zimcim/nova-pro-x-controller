@@ -58,6 +58,21 @@ For CPU temperature monitoring, install and run one of these programs:
 - [OpenHardwareMonitor](https://openhardwaremonitor.org/) (recommended)
 - [HWiNFO64](https://www.hwinfo.com/)
 
+### OpenHardwareMonitor Setup (Recommended)
+
+1. Download and install OpenHardwareMonitor from the official website
+2. Run OpenHardwareMonitor as Administrator (right-click → "Run as administrator")
+3. Configure OpenHardwareMonitor for optimal experience:
+   - Go to **Options** menu
+   - Enable these settings:
+     - ✅ **Start Minimized** - Program starts in system tray
+     - ✅ **Minimize To Tray** - Minimize button sends to tray instead of taskbar
+     - ✅ **Minimize On Close** - Close button minimizes instead of exiting
+     - ✅ **Run On Windows Startup** - Automatically starts with Windows
+4. Restart Nova Pro X Controller to detect temperature sensors
+
+With these settings, OpenHardwareMonitor will run silently in the background and provide temperature data to Nova Pro X Controller.
+
 ## Usage
 
 1. Make sure SteelSeries Engine 3 is running
@@ -70,7 +85,6 @@ For CPU temperature monitoring, install and run one of these programs:
 
 - `customtkinter` - Modern UI framework
 - `psutil` - System monitoring
-- `GPUtil` - GPU monitoring
 - `wmi` - Windows Management Instrumentation
 - `requests` - API communication
 

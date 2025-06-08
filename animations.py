@@ -2,18 +2,14 @@ import random
 import time
 from datetime import datetime
 from config import CHAR_LIMIT
+import subprocess
+import sys
 
 try:
     import psutil
     HAS_PSUTIL = True
 except ImportError:
     HAS_PSUTIL = False
-
-try:
-    import GPUtil
-    HAS_GPUTIL = True
-except ImportError:
-    HAS_GPUTIL = False
 
 try:
     import struct
@@ -24,9 +20,46 @@ except ImportError:
 
 try:
     import wmi
+    import pythoncom
     HAS_WMI = True
 except ImportError:
     HAS_WMI = False
+
+def get_gpu_info():
+    try:
+        if sys.platform == "win32":
+            si = subprocess.STARTUPINFO()
+            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            si.wShowWindow = subprocess.SW_HIDE
+            
+            result = subprocess.run(
+                ["nvidia-smi", "--query-gpu=utilization.gpu,temperature.gpu,name", "--format=csv,noheader,nounits"],
+                capture_output=True,
+                text=True,
+                startupinfo=si,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+        else:
+            result = subprocess.run(
+                ["nvidia-smi", "--query-gpu=utilization.gpu,temperature.gpu,name", "--format=csv,noheader,nounits"],
+                capture_output=True,
+                text=True
+            )
+        
+        if result.returncode == 0:
+            lines = result.stdout.strip().split('\n')
+            if lines and lines[0]:
+                values = lines[0].split(', ')
+                if len(values) >= 3:
+                    return {
+                        "load": float(values[0]) / 100,
+                        "temperature": float(values[1]),
+                        "name": values[2]
+                    }
+    except:
+        pass
+    
+    return None
 
 class AnimationFunctions:
     def __init__(self):
@@ -35,6 +68,8 @@ class AnimationFunctions:
         self._last_net_recv = 0
         self._last_net_sent = 0
         self._last_net_time = time.time()
+        self._wmi_initialized = False
+        self._wmi_lock = False
     
     def reset_all(self):
         self.cpu_history = [0] * CHAR_LIMIT
@@ -84,13 +119,9 @@ class AnimationFunctions:
                 mem = psutil.virtual_memory()
                 
                 gpu_text = "GPU: N/A"
-                if HAS_GPUTIL:
-                    try:
-                        gpus = GPUtil.getGPUs()
-                        if gpus:
-                            gpu_text = f"GPU: {gpus[0].load * 100:.0f}%"
-                    except:
-                        pass
+                gpu_info = get_gpu_info()
+                if gpu_info:
+                    gpu_text = f"GPU: {gpu_info['load'] * 100:.0f}%"
                 
                 return [
                     gpu_text,
@@ -138,24 +169,47 @@ class AnimationFunctions:
             return ["Install psutil", "pip install", "psutil"]
     
     def get_cpu_temperature(self):
-        if HAS_WMI:
+        if HAS_WMI and sys.platform == "win32":
             try:
+                import threading
+                current_thread = threading.current_thread()
+                
+                if not hasattr(current_thread, '_com_initialized'):
+                    pythoncom.CoInitialize()
+                    current_thread._com_initialized = True
+                
                 c = wmi.WMI(namespace="root\\OpenHardwareMonitor")
+                cpu_temps = []
                 
                 for sensor in c.Sensor():
                     if sensor.SensorType == "Temperature":
-                        if "CPU Package" in sensor.Name:
-                            return float(sensor.Value)
-                
-                for sensor in c.Sensor():
-                    if sensor.SensorType == "Temperature":
-                        if "CPU" in sensor.Name or "CCD" in sensor.Name:
+                        if any(keyword in sensor.Name.upper() for keyword in ["CPU", "CORE", "PROCESSOR"]):
                             temp = float(sensor.Value)
                             if 0 < temp < 150:
-                                return temp
+                                cpu_temps.append(temp)
+                
+                if cpu_temps:
+                    return sum(cpu_temps) / len(cpu_temps)
                     
-            except Exception as e:
-                print(f"WMI Error: {e}")
+            except:
+                pass
+        
+        if HAS_WMI and sys.platform == "win32":
+            try:
+                import threading
+                current_thread = threading.current_thread()
+                
+                if not hasattr(current_thread, '_com_initialized'):
+                    pythoncom.CoInitialize()
+                    current_thread._com_initialized = True
+                
+                c = wmi.WMI(namespace="root\\wmi")
+                for thermal in c.MSAcpi_ThermalZoneTemperature():
+                    temp = thermal.CurrentTemperature / 10.0 - 273.15
+                    if 0 < temp < 150:
+                        return temp
+            except:
+                pass
         
         if HAS_PSUTIL:
             try:
@@ -163,12 +217,61 @@ class AnimationFunctions:
                     temps = psutil.sensors_temperatures()
                     if temps:
                         for name, entries in temps.items():
-                            if entries:
-                                temp = entries[0].current
-                                if 0 < temp < 150:
-                                    return temp
-            except Exception as e:
-                print(f"psutil Error: {e}")
+                            if any(keyword in name.upper() for keyword in ["CPU", "CORE", "PROCESSOR"]):
+                                for entry in entries:
+                                    temp = entry.current
+                                    if 0 < temp < 150:
+                                        return temp
+            except:
+                pass
+        
+        try:
+            for i in range(10):
+                try:
+                    with open(f"/sys/class/thermal/thermal_zone{i}/temp", 'r') as f:
+                        temp = int(f.read().strip()) / 1000.0
+                        if 0 < temp < 150:
+                            return temp
+                except:
+                    continue
+        except:
+            pass
+        
+        if sys.platform == "win32" and HAS_MMAP:
+            try:
+                with mmap.mmap(-1, 1024, tagname="CoreTempMappingObject", access=mmap.ACCESS_READ) as mm:
+                    mm.seek(0)
+                    data = mm.read(256)
+                    if len(data) >= 256:
+                        cpu_count = struct.unpack('I', data[0:4])[0]
+                        if cpu_count > 0 and cpu_count < 64:
+                            temp_data_start = 160
+                            temp = struct.unpack('f', data[temp_data_start:temp_data_start+4])[0]
+                            if 0 < temp < 150:
+                                return temp
+            except:
+                pass
+        
+        if sys.platform == "win32" and HAS_MMAP:
+            try:
+                with mmap.mmap(-1, 10240, tagname="HWiNFO_SENSORS_SM2", access=mmap.ACCESS_READ) as mm:
+                    mm.seek(0)
+                    header = mm.read(16)
+                    if len(header) >= 16:
+                        signature = header[:4]
+                        if signature == b'HWiS':
+                            sensor_count = struct.unpack('I', header[8:12])[0]
+                            for i in range(min(sensor_count, 100)):
+                                sensor_offset = 16 + i * 88
+                                mm.seek(sensor_offset + 4)
+                                sensor_name = mm.read(64).decode('ascii', errors='ignore').strip('\x00')
+                                if 'CPU' in sensor_name.upper() and 'TEMP' in sensor_name.upper():
+                                    mm.seek(sensor_offset + 76)
+                                    temp = struct.unpack('d', mm.read(8))[0]
+                                    if 0 < temp < 150:
+                                        return temp
+            except:
+                pass
         
         return None
     
@@ -176,20 +279,13 @@ class AnimationFunctions:
         cpu_temp = "CPU: N/A"
         gpu_temp = "GPU: N/A"
         
-        try:
-            cpu_temperature = self.get_cpu_temperature()
-            if cpu_temperature is not None:
-                cpu_temp = f"CPU: {int(cpu_temperature)}°C"
-        except Exception as e:
-            print(f"CPU temp error: {e}")
+        cpu_temperature = self.get_cpu_temperature()
+        if cpu_temperature:
+            cpu_temp = f"CPU: {int(cpu_temperature)}°C"
         
-        if HAS_GPUTIL:
-            try:
-                gpus = GPUtil.getGPUs()
-                if gpus:
-                    gpu_temp = f"GPU: {gpus[0].temperature:.0f}°C"
-            except Exception as e:
-                print(f"GPU temp error: {e}")
+        gpu_info = get_gpu_info()
+        if gpu_info and 'temperature' in gpu_info:
+            gpu_temp = f"GPU: {gpu_info['temperature']:.0f}°C"
         
         return [
             cpu_temp,

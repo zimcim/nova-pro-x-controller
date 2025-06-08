@@ -1,8 +1,20 @@
+import subprocess
+import sys
+
+# Subprocess'lerin konsol açmasını engelle
+if sys.platform == "win32":
+    si = subprocess.STARTUPINFO()
+    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    si.wShowWindow = subprocess.SW_HIDE
+    subprocess._startupinfo = si
+
+import os
+os.environ['PYTHONIOENCODING'] = 'utf-8'
+
 import customtkinter as ctk
 import json
 import requests
 import time
-import os
 import threading
 import queue
 import configparser
@@ -159,11 +171,9 @@ class NovaProUltimateGUI:
                 self.controller.display("", "", "")
                 self.ui.update_preview("", "", "")
                 
-                
                 if hasattr(self.ui, 'auto_start') and self.ui.auto_start.get():
                     last_preset = getattr(self, 'loaded_last_preset', '')
                     if last_preset:
-                        
                         self.root.after(500, self.load_last_preset)
             else:
                 self.ui.set_status(False)
@@ -191,42 +201,32 @@ class NovaProUltimateGUI:
             pass
     
     def on_speed_change(self, value):
-        
-        
         if hasattr(self.ui, 'speed_label'):
             self.ui.speed_label.configure(text=f"{int(value)}ms")
     
     def on_speed_release(self, event=None):
-        
         if hasattr(self.ui, 'speed_slider'):
             value = self.ui.speed_slider.get()
             self.current_speed = value
             
-            
             if hasattr(self, 'settings_loaded') and self.settings_loaded:
                 self.save_settings()
-            
             
             if self.animation_running and self.current_preset:
                 print(f"Restarting animation with new speed: {int(value)}ms")
                 
-                
                 current_preset_id = self.current_preset
                 current_preset_data = None
                 
-                
                 if current_preset_id == "custom_text":
-                    
                     lines = [entry.get()[:CHAR_LIMIT] for entry in self.ui.line_entries]
                     self.send_custom(lines)
                     return
                 else:
-                    
                     for category, presets in self.all_presets.items():
                         if current_preset_id in presets:
                             current_preset_data = presets[current_preset_id]
                             break
-                
                 
                 if current_preset_data:
                     self.load_preset(current_preset_id, current_preset_data)
@@ -411,7 +411,6 @@ class NovaProUltimateGUI:
         self.stop_animation()
         self.current_preset = "custom_text"
         
-        
         def make_custom_display(custom_lines):
             def custom_display():
                 return list(custom_lines)
@@ -424,10 +423,8 @@ class NovaProUltimateGUI:
         if hasattr(self.ui, 'stop_btn') and self.ui.stop_btn:
             self.ui.stop_btn.configure(state="normal")
         
-        
         self.controller.display(*lines)
         self.ui.update_preview(*lines)
-        
         
         self.start_animation_thread(custom_func, self.current_speed)
         
@@ -446,7 +443,6 @@ class NovaProUltimateGUI:
     
     def save_settings(self):
         try:
-            
             if not hasattr(self, 'ui') or not hasattr(self.ui, 'line_entries'):
                 print("UI not ready, skipping save")
                 return
@@ -458,7 +454,6 @@ class NovaProUltimateGUI:
                 self.config.set('Settings', 'auto_start', str(self.ui.auto_start.get()))
             
             self.config.set('Settings', 'last_preset', self.current_preset or '')
-            
             
             for i, entry in enumerate(self.ui.line_entries):
                 self.config.set('Settings', f'custom_line_{i+1}', entry.get())
@@ -475,13 +470,10 @@ class NovaProUltimateGUI:
     def load_settings(self):
         if os.path.exists(self.config_file):
             try:
-                
                 self.config.read(self.config_file)
-                
                 
                 self.loaded_last_preset = self.config.get('Settings', 'last_preset', fallback='')
                 print(f"Config file found. Last preset: {self.loaded_last_preset}")
-                
                 
                 self.current_preset = self.loaded_last_preset if self.loaded_last_preset else None
                 
@@ -500,7 +492,6 @@ class NovaProUltimateGUI:
                     self.ui.update_speed(speed)
                     self.current_speed = speed
                 
-                
                 custom_lines_loaded = []
                 for i in range(3):
                     if self.config.has_option('Settings', f'custom_line_{i+1}'):
@@ -513,7 +504,6 @@ class NovaProUltimateGUI:
                         
                 print(f"Custom lines loaded from config: {custom_lines_loaded}")
                 print(f"Settings loaded successfully")
-                
                 
                 self.settings_loaded = True
                 
@@ -529,14 +519,11 @@ class NovaProUltimateGUI:
             print("No settings file found")
     
     def load_last_preset(self):
-        """Load the last preset that was saved"""
         last_preset = getattr(self, 'loaded_last_preset', '')
         print(f"Loading last preset: {last_preset}")
         
         if last_preset == "custom_text":
-            
             def load_custom():
-                
                 lines = [entry.get()[:CHAR_LIMIT] for entry in self.ui.line_entries]
                 print(f"Entry field contents: {lines}")
                 
@@ -545,7 +532,6 @@ class NovaProUltimateGUI:
                     self.send_custom(lines)
                 else:
                     print("No custom text found in entry fields")
-            
             
             self.root.after(200, load_custom)
         elif last_preset:
